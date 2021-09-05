@@ -1,13 +1,19 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useForm } from "react-hook-form";
+import "./table.css";
 
 const AppBody = () => {
 
   const { register, handleSubmit, formState: { errors }, setValue } = useForm();
 
   const [lista, setLista] = useState([]);
+  const [alterar, setAlterar] = useState(false);
+  const [data_id, setData_id] = useState(0);
 
   const onSubmit = (data, e) => {
+
+    // acrescenta um novo atributo aos dados enviados a partir do formulário
+    data.id = new Date().getTime();
     console.log(data);
 
     // se houver dados salvos em localStorage, obtém esses dados (senão, vazio)
@@ -22,14 +28,97 @@ const AppBody = () => {
     setLista([...lista, data]);
 
     // pode-se limpar cada campo
-//    setValue("modelo", "");
+    setValue("modelo", "");
+    setValue("marca", "");
+    setValue("ano", "");
+    setValue("preco", "");
 
     // ou, então, limpar todo o form
-    e.target.reset();
+    // contudo, esse reset() não limpa o conteúdo das variáveis (ou seja, se o usuário
+    // clicar 2x sobre o adicionar, irá duplicar o registro)
+//    e.target.reset();
   }
 
   // obtém o ano atual
   const ano_atual = new Date().getFullYear();
+
+  // "efeito colateral", ocorre quando a página é carregada
+  useEffect(() => {
+    setLista(localStorage.getItem("carros")
+      ? JSON.parse(localStorage.getItem("carros"))
+      : []);
+  }, []); 
+
+  const handleClick = e => {
+    // obtém a linha da tabela sobre a qual o usuário clicou, ou seja, qual elemento tr foi clicado
+    const tr = e.target.closest("tr");
+
+    // console.log(e.target);
+    // console.log(tr);
+    // console.log(tr.getAttribute("data-id"));  
+    
+    const id = Number(tr.getAttribute("data-id"));
+    
+    if (e.target.classList.contains("fa-edit")) {      
+      // console.log("Alterar");
+
+      // atribui a cada variável do form, o conteúdo da linha clicada
+      setValue("modelo", tr.cells[0].innerText);
+      setValue("marca", tr.cells[1].innerText);
+      setValue("ano", tr.cells[2].innerText);
+      setValue("preco", tr.cells[3].innerText);
+
+      setAlterar(true);
+      setData_id(id);
+
+    } else if (e.target.classList.contains("fa-minus-circle")) {
+      // console.log("Excluir");
+
+      // obtém o modelo da linha sobre a qual o usuário clicou
+      const modelo = tr.cells[0].innerText;
+
+      if (window.confirm(`Confirma a exclusão do veículo "${modelo}"?`)) {
+        // aplica um filtro para recuperar todas as linhas, exceto aquela que será excluída
+        const novaLista = lista.filter((carro) => {return carro.id !== id});
+
+        // atualiza o localStorage
+        localStorage.setItem("carros", JSON.stringify(novaLista));
+
+        // atualiza a tabela (refresh)
+        setLista(novaLista);
+      }
+    }
+  }
+
+  const onUpdate = data => {
+    // inicialmente, recupera os dados salvos em localStorage
+    const carros = JSON.parse(localStorage.getItem("carros"));
+
+    // cria um novo array vazio
+    const carros2 = [];
+
+    for (const carro of carros) {
+      if (carro.id === data_id) {
+        data.id = data_id;
+        carros2.push(data);   // os dados do form (alterados) + data.id
+      } else {
+        carros2.push(carro);
+      }
+    }
+
+    // atualiza os dados em localStorage (com os dados de carros2)
+    localStorage.setItem("carros", JSON.stringify(carros2));
+
+    // atualiza a lista (para fazer um refresh na página)
+    setLista(carros2);
+
+    setValue("modelo", "");
+    setValue("marca", "");
+    setValue("ano", "");
+    setValue("preco", "");
+
+    setAlterar(false);
+  }
 
   return (
     <div className="row">
@@ -42,7 +131,7 @@ const AppBody = () => {
       </div>
 
       <div className="col-sm-9 mt-2">
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={alterar ? handleSubmit(onUpdate) : handleSubmit(onSubmit)}>
           <div className="input-group mb-3">
             <div className="input-group-prepend">
               <span className="input-group-text">Modelo:</span>
@@ -102,8 +191,13 @@ const AppBody = () => {
             <div className="input-group-append">
               <input
                 type="submit"
-                className="btn btn-primary"
+                className={alterar ? "d-none" : "btn btn-primary"}
                 value="Adicionar"
+              />
+              <input
+                type="submit"
+                className={alterar ? "btn btn-success" : "d-none"}
+                value="Alterar"
               />
             </div>
           </div>
@@ -142,12 +236,17 @@ const AppBody = () => {
           <tbody>
             {lista.map((carro) => {
               return (
-                <tr key={carro.modelo}>
+                <tr key={carro.id}
+                    data-id={carro.id}
+                    onClick={handleClick}>
                   <td>{carro.modelo}</td>
                   <td>{carro.marca}</td>
                   <td>{carro.ano}</td>
                   <td>{carro.preco}</td>
-                  <td></td>
+                  <td>
+                    <i className="far fa-edit text-success mr-2" title="Alterar"></i>
+                    <i className="fas fa-minus-circle text-danger" title="Excluir"></i>
+                  </td>
                 </tr>
               );
             })}
